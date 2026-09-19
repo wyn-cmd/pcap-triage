@@ -38,6 +38,17 @@ def frames():
     return out
 
 
+def beacon_frames(count=8, interval=60.0):
+    """One host calling the same place again and again on a timer."""
+    out = []
+    for index in range(count):
+        segment = build.tcp(54000 + index, 4444, b"ping")
+        out.append((1000.0 + index * interval,
+                    build.ethernet(build.ipv4(CLIENT, "203.0.113.9", 6,
+                                              segment))))
+    return out
+
+
 def summary_from(frames, path):
     with open(path, "wb") as handle:
         handle.write(build.pcap(frames))
@@ -110,6 +121,36 @@ class NotableTests(unittest.TestCase):
             CLIENT, SERVER, 6, build.tcp(50000, 443, b"\x16\x03\x01\x00\x05\x02\x00\x00"))))],
             path)
         self.assertIn("no names were asked for", report.render(blind))
+
+
+class BeaconTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.work = tempfile.mkdtemp(prefix="pcap-beacon-test-")
+
+    def test_a_regular_callback_is_named(self):
+        summary = summary_from(beacon_frames(),
+                               os.path.join(self.work, "beacon.pcap"))
+        self.assertIn("at roughly 60 second intervals",
+                      report.render(summary))
+
+    def test_ordinary_traffic_is_not_called_regular(self):
+        uneven = [(1000.0, beacon_frames(1)[0][1]),
+                  (1001.0, beacon_frames(1)[0][1]),
+                  (1009.0, beacon_frames(1)[0][1]),
+                  (1041.0, beacon_frames(1)[0][1]),
+                  (1200.0, beacon_frames(1)[0][1]),
+                  (1900.0, beacon_frames(1)[0][1])]
+        summary = summary_from(uneven, os.path.join(self.work, "uneven.pcap"))
+        self.assertNotIn("intervals", report.render(summary))
+
+    def test_too_few_callbacks_is_not_a_pattern(self):
+        self.assertIsNone(report.regular_interval([1.0, 61.0, 121.0]))
+
+    def test_evenly_spaced_is_a_pattern(self):
+        self.assertAlmostEqual(report.regular_interval([0.0, 60.0, 120.0,
+                                                         180.0, 240.0]),
+                               60.0, places=6)
 
 
 class RenderTests(unittest.TestCase):

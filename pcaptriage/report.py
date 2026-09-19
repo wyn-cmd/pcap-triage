@@ -16,6 +16,12 @@ from . import parse
 # something broader than using a service.
 SCAN_PORTS = 20
 
+# A callback that repeats at least this many times with gaps this close
+# together is worth naming. Both numbers are judgement calls, and both
+# are deliberately loose so ordinary traffic stays out of the list.
+BEACON_MINIMUM = 5
+BEACON_VARIATION = 0.15
+
 
 def human_bytes(count):
     for unit, size in (("GB", 1024 ** 3), ("MB", 1024 ** 2), ("KB", 1024)):
@@ -56,6 +62,9 @@ class Summary:
         self.http_requests = Counter()
         self.credentials = Counter()
         self.destination_ports = defaultdict(set)
+        # Timestamps per destination, which is what a regular callback
+        # shows up in: the gaps between them are all the same length.
+        self.connections = defaultdict(list)
 
     @property
     def duration(self):
@@ -84,6 +93,8 @@ def summarise(packets):
             summary.protocols[parse.protocol_name(flow.protocol)] += 1
             summary.services[f"{parse.protocol_name(flow.protocol)}/{flow.dport}"] += 1
             summary.destination_ports[flow.src].add(flow.dport)
+            summary.connections[(flow.src, flow.dst, flow.dport)].append(
+                packet.timestamp)
 
             name = apps.dns_question(flow.payload, flow.dport)
             if name:
@@ -105,9 +116,33 @@ def summarise(packets):
     return summary
 
 
+def regular_interval(times):
+    """The average gap when the gaps are all about the same length.
+
+    Returns None when the traffic is too sparse or too uneven to call
+    it regular, which is the usual answer for ordinary browsing.
+    """
+    if len(times) < BEACON_MINIMUM:
+        return None
+    ordered = sorted(times)
+    gaps = [later - earlier for earlier, later in zip(ordered, ordered[1:])]
+    average = sum(gaps) / len(gaps)
+    if average <= 0:
+        return None
+    if (max(gaps) - min(gaps)) / average > BEACON_VARIATION:
+        return None
+    return average
+
+
 def notable(summary):
     """The lines under "what stands out", in the order they matter."""
     lines = []
+
+    for (src, dst, port), times in sorted(summary.connections.items()):
+        average = regular_interval(times)
+        if average is not None:
+            lines.append(f"{src} contacted {dst}:{port} {len(times)} times "
+                         f"at roughly {average:.0f} second intervals")
 
     for (src, dst, path), count in summary.credentials.most_common(5):
         plural = "request" if count == 1 else "requests"
