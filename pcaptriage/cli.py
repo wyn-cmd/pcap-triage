@@ -8,9 +8,23 @@ import argparse
 import json
 import sys
 
+from datetime import datetime
+
 from . import __version__
 from . import pcap
 from . import report
+
+
+def parse_time(text):
+    """A timestamp from the command line: seconds, or an ISO 8601 time."""
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        raise ValueError(f"could not read '{text}' as a time")
 
 
 def build_parser():
@@ -20,6 +34,10 @@ def build_parser():
     parser.add_argument("capture", help="a .pcap file to read")
     parser.add_argument("-n", "--top", type=int, default=10,
                         help="rows to show per section (default: 10)")
+    parser.add_argument("--since", metavar="TIME",
+                        help="only count packets at or after this time")
+    parser.add_argument("--until", metavar="TIME",
+                        help="only count packets at or before this time")
     parser.add_argument("--host", metavar="ADDRESS",
                         help="only count traffic to or from this address")
     parser.add_argument("--json", action="store_true",
@@ -37,8 +55,16 @@ def main(argv=None):
         return 2
 
     try:
+        since = parse_time(args.since) if args.since else None
+        until = parse_time(args.until) if args.until else None
+    except ValueError as error:
+        print(f"pcap-triage: {error}", file=sys.stderr)
+        return 2
+
+    try:
         packets = pcap.read_packets(args.capture)
-        summary = report.summarise(packets, host=args.host)
+        summary = report.summarise(packets, host=args.host,
+                                   since=since, until=until)
     except FileNotFoundError:
         print(f"pcap-triage: no such file: {args.capture}", file=sys.stderr)
         return 2

@@ -73,10 +73,20 @@ class Summary:
         return max(0, self.last - self.first)
 
 
-def summarise(packets, host=None):
-    """Read a capture into a Summary, optionally only for one address."""
+def summarise(packets, host=None, since=None, until=None):
+    """Read a capture into a Summary, narrowed if asked.
+
+    host keeps only traffic to or from one address, and since and
+    until keep only packets inside a time window. The window is
+    applied before anything is counted, so the totals describe what
+    was kept rather than what was read.
+    """
     summary = Summary()
     for packet in packets:
+        if since is not None and packet.timestamp < since:
+            continue
+        if until is not None and packet.timestamp > until:
+            continue
         summary.packets += 1
         summary.total_bytes += len(packet.data)
         if summary.first is None or packet.timestamp < summary.first:

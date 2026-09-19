@@ -78,6 +78,21 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("no packets", err)
 
+    def test_a_time_window_narrows_the_report(self):
+        code, out, _ = run([self.path, "--since", "1.5"])
+        self.assertEqual(code, 0)
+        self.assertIn("1 packets", out)
+
+    def test_an_iso_time_is_accepted(self):
+        code, out, _ = run([self.path, "--since", "1970-01-01T00:00:00"])
+        self.assertEqual(code, 0)
+        self.assertIn("2 packets", out)
+
+    def test_a_time_that_makes_no_sense_is_refused(self):
+        code, _, err = run([self.path, "--since", "whenever"])
+        self.assertEqual(code, 2)
+        self.assertIn("as a time", err)
+
     def test_version_exits_cleanly(self):
         with self.assertRaises(SystemExit) as caught:
             run([self.path, "--version"])
