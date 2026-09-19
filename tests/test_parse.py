@@ -26,6 +26,25 @@ class EthernetTests(unittest.TestCase):
     def test_a_frame_shorter_than_the_header_is_not_read(self):
         self.assertEqual(parse.ethernet_frame(b"\x00" * 13), (None, None))
 
+    def test_a_vlan_tag_is_stepped_over(self):
+        tagged = (build.BROADCAST_MAC + build.ZERO_MAC
+                  + struct.pack("!HHH", 0x8100, 100, 0x0800) + b"body")
+        ethertype, payload = parse.ethernet_frame(tagged)
+        self.assertEqual(ethertype, 0x0800)
+        self.assertEqual(payload, b"body")
+
+    def test_two_stacked_tags_are_stepped_over(self):
+        tagged = (build.BROADCAST_MAC + build.ZERO_MAC
+                  + struct.pack("!HHHHH", 0x8100, 100, 0x8100, 200, 0x0800)
+                  + b"body")
+        ethertype, payload = parse.ethernet_frame(tagged)
+        self.assertEqual(ethertype, 0x0800)
+        self.assertEqual(payload, b"body")
+
+    def test_a_tag_with_nothing_behind_it_is_not_read(self):
+        self.assertEqual(parse.ethernet_frame(b"\x00" * 12 + b"\x81\x00"),
+                         (None, None))
+
     def test_ipv6_is_reported_as_such_by_its_ethertype(self):
         frame = build.ethernet(b"body", ethertype=parse.ETHERTYPE_IPV6)
         ethertype, _ = parse.ethernet_frame(frame)

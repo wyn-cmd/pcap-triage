@@ -24,11 +24,22 @@ Flow.__doc__ = """One packet, reduced to the five things triage needs."""
 
 
 def ethernet_frame(data):
-    """Return (ethertype, payload) for an Ethernet frame, or (None, None)."""
+    """Return (ethertype, payload) for an Ethernet frame, or (None, None).
+
+    VLAN tags are peeled off. A tagged frame carries the tag protocol
+    id where the ethertype usually sits and the real ethertype four
+    bytes later, and a trunk can stack more than one tag.
+    """
     if len(data) < ETHERNET_HEADER:
         return None, None
     ethertype = struct.unpack("!H", data[12:14])[0]
-    return ethertype, data[ETHERNET_HEADER:]
+    offset = ETHERNET_HEADER
+    while ethertype == ETHERTYPE_VLAN:
+        if len(data) < offset + 4:
+            return None, None
+        ethertype = struct.unpack("!H", data[offset + 2:offset + 4])[0]
+        offset += 4
+    return ethertype, data[offset:]
 
 
 def ipv4_packet(payload):
