@@ -88,5 +88,40 @@ class ReadTests(CaptureTestCase):
         self.assertEqual(packets[0].linktype, 101)
 
 
+class PcapngTests(CaptureTestCase):
+    def frame(self, payload=b"payload"):
+        return build.ethernet(build.ipv4("10.0.0.1", "10.0.0.2", 6,
+                                         build.tcp(1234, 80, payload)))
+
+    def test_packets_are_read_from_a_pcapng_capture(self):
+        path = self.write(build.pcapng([(1_700_000_000.5, self.frame())]),
+                          name="capture.pcapng")
+        packets = list(pcap.read_packets(path))
+        self.assertEqual(len(packets), 1)
+        self.assertAlmostEqual(packets[0].timestamp, 1_700_000_000.5, places=5)
+        self.assertEqual(packets[0].linktype, 1)
+
+    def test_a_big_endian_pcapng_is_read(self):
+        path = self.write(build.pcapng([(1000.25, self.frame())],
+                                       byte_order=">"),
+                          name="big.pcapng")
+        packets = list(pcap.read_packets(path))
+        self.assertAlmostEqual(packets[0].timestamp, 1000.25, places=5)
+
+    def test_a_frame_is_not_padded_into_the_next_one(self):
+        path = self.write(build.pcapng([(1.0, self.frame(b"one")),
+                                        (2.0, self.frame(b"twotwo"))]),
+                          name="two.pcapng")
+        packets = list(pcap.read_packets(path))
+        self.assertEqual(len(packets), 2)
+        self.assertTrue(packets[0].data.endswith(b"one"))
+
+    def test_the_link_type_comes_from_the_interface_block(self):
+        path = self.write(build.pcapng([(1.0, b"\x45" + b"\x00" * 19)],
+                                       linktype=101),
+                          name="raw.pcapng")
+        self.assertEqual(list(pcap.read_packets(path))[0].linktype, 101)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

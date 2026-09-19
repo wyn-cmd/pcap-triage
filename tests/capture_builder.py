@@ -103,3 +103,25 @@ def pcap(packets, linktype=1, nanosecond=False, byte_order="<", truncated=False)
         # A capture cut off in the middle of a record.
         out = out[:-3]
     return out
+
+
+def pcapng(packets, linktype=1, byte_order="<"):
+    """Wrap frames in a pcapng file with one section and one interface."""
+
+    def block(block_type, body):
+        length = 12 + len(body)
+        raw = struct.pack(byte_order + "II", block_type, length) + body
+        return raw + struct.pack(byte_order + "I", length)
+
+    mark = b"\x4d\x3c\x2b\x1a" if byte_order == "<" else b"\x1a\x2b\x3c\x4d"
+    out = block(0x0A0D0D0A, mark + struct.pack(byte_order + "HHq", 1, 0, -1))
+    out += block(0x00000001, struct.pack(byte_order + "HHI", linktype, 0, 65535))
+    for timestamp, frame in packets:
+        ticks = int(timestamp * 1_000_000)
+        body = struct.pack(byte_order + "IIIII", 0, ticks >> 32,
+                           ticks & 0xFFFFFFFF, len(frame), len(frame)) + frame
+        # Blocks are padded to a four byte boundary, and the captured
+        # length still tells the reader how much of it is real.
+        body += b"\x00" * (-len(frame) % 4)
+        out += block(0x00000006, body)
+    return out
