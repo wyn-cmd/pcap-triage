@@ -73,8 +73,8 @@ class Summary:
         return max(0, self.last - self.first)
 
 
-def summarise(packets):
-    """Read a capture into a Summary."""
+def summarise(packets, host=None):
+    """Read a capture into a Summary, optionally only for one address."""
     summary = Summary()
     for packet in packets:
         summary.packets += 1
@@ -85,6 +85,8 @@ def summarise(packets):
             summary.last = packet.timestamp
 
         for flow in parse.flows([packet]):
+            if host and host not in (flow.src, flow.dst):
+                continue
             pair = (flow.src, flow.dst)
             summary.talkers[pair] += 1
             # Count whole packets, so this agrees with the size in the header
@@ -104,9 +106,9 @@ def summarise(packets):
             if name:
                 summary.tls_names[name] += 1
 
-            host = apps.http_host(flow.payload, flow.dport)
-            if host:
-                summary.http_hosts[host] += 1
+            http_host = apps.http_host(flow.payload, flow.dport)
+            if http_host:
+                summary.http_hosts[http_host] += 1
 
             method, path = apps.http_request_line(flow.payload)
             if method and flow.dport in apps.HTTP_PORTS:

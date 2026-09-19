@@ -20,6 +20,8 @@ def build_parser():
     parser.add_argument("capture", help="a .pcap file to read")
     parser.add_argument("-n", "--top", type=int, default=10,
                         help="rows to show per section (default: 10)")
+    parser.add_argument("--host", metavar="ADDRESS",
+                        help="only count traffic to or from this address")
     parser.add_argument("--json", action="store_true",
                         help="print the counts as JSON instead of a report")
     parser.add_argument("--version", action="version",
@@ -36,7 +38,7 @@ def main(argv=None):
 
     try:
         packets = pcap.read_packets(args.capture)
-        summary = report.summarise(packets)
+        summary = report.summarise(packets, host=args.host)
     except FileNotFoundError:
         print(f"pcap-triage: no such file: {args.capture}", file=sys.stderr)
         return 2

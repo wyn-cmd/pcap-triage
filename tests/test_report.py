@@ -167,6 +167,18 @@ class RenderTests(unittest.TestCase):
                         "http requests", "what stands out"):
             self.assertIn(heading, self.text)
 
+    def test_a_host_limit_keeps_only_that_address(self):
+        import tempfile
+        work = tempfile.mkdtemp(prefix="pcap-host-test-")
+        path = os.path.join(work, "sample.pcap")
+        with open(path, "wb") as handle:
+            handle.write(build.pcap(frames()))
+        only = report.summarise(pcap.read_packets(path), host=CLIENT)
+        self.assertEqual(only.packets, 27)
+        other = report.summarise(pcap.read_packets(path), host="10.9.9.9")
+        self.assertEqual(other.packets, 27)
+        self.assertEqual(other.talkers, {})
+
     def test_the_header_counts_packets(self):
         self.assertIn("27 packets", self.text)
 
