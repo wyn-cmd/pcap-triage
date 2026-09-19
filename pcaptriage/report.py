@@ -179,3 +179,27 @@ def render(summary, top=10):
     out.append("")
 
     return "\n".join(out)
+
+
+def as_dict(summary, top=10):
+    """The same counts in a shape another program can read."""
+    return {
+        "packets": summary.packets,
+        "bytes": summary.total_bytes,
+        "first_timestamp": summary.first,
+        "last_timestamp": summary.last,
+        "duration_seconds": summary.duration,
+        "talkers": [
+            {"src": pair[0], "dst": pair[1], "packets": count,
+             "bytes": summary.talker_bytes[pair]}
+            for pair, count in summary.talkers.most_common(top)],
+        "protocols": dict(summary.protocols.most_common(top)),
+        "services": dict(summary.services.most_common(top)),
+        "dns_names": dict(summary.dns_names.most_common(top)),
+        "tls_names": dict(summary.tls_names.most_common(top)),
+        "http_hosts": dict(summary.http_hosts.most_common(top)),
+        "http_requests": [
+            {"method": key[0], "path": key[1], "count": count}
+            for key, count in summary.http_requests.most_common(top)],
+        "notable": notable(summary),
+    }

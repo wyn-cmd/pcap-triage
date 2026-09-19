@@ -5,6 +5,7 @@ that grows beyond that belongs in the modules it calls.
 """
 
 import argparse
+import json
 import sys
 
 from . import __version__
@@ -19,6 +20,8 @@ def build_parser():
     parser.add_argument("capture", help="a .pcap file to read")
     parser.add_argument("-n", "--top", type=int, default=10,
                         help="rows to show per section (default: 10)")
+    parser.add_argument("--json", action="store_true",
+                        help="print the counts as JSON instead of a report")
     parser.add_argument("--version", action="version",
                         version=f"pcap-triage {__version__}")
     return parser
@@ -45,7 +48,10 @@ def main(argv=None):
         print("pcap-triage: the capture holds no packets", file=sys.stderr)
         return 1
 
-    print(report.render(summary, top=args.top), end="")
+    if args.json:
+        print(json.dumps(report.as_dict(summary, top=args.top), indent=2))
+    else:
+        print(report.render(summary, top=args.top), end="")
     return 0
 
 

@@ -152,5 +152,26 @@ class FormattingTests(unittest.TestCase):
         self.assertEqual(report.human_duration(7200), "2.0 hours")
 
 
+class JsonTests(unittest.TestCase):
+    def test_the_counts_survive_the_round_trip(self):
+        import json
+        import tempfile
+        work = tempfile.mkdtemp(prefix="pcap-json-test-")
+        path = os.path.join(work, "sample.pcap")
+        summary = summary_from(frames(), path)
+        data = json.loads(json.dumps(report.as_dict(summary)))
+        self.assertEqual(data["packets"], 27)
+        self.assertEqual(data["protocols"]["TCP"], 26)
+        self.assertEqual(data["tls_names"]["example.org"], 1)
+        self.assertEqual(data["talkers"][0]["src"], CLIENT)
+        self.assertTrue(data["notable"])
+
+    def test_top_limits_the_json_too(self):
+        import tempfile
+        work = tempfile.mkdtemp(prefix="pcap-json-test-")
+        summary = summary_from(frames(), os.path.join(work, "s.pcap"))
+        self.assertEqual(len(report.as_dict(summary, top=1)["talkers"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
