@@ -50,6 +50,43 @@ def ipv4_packet(payload):
     return src, dst, protocol, body
 
 
+IPV6_HEADER = 40
+
+# Extension headers that can sit between the ipv6 header and the
+# segment: hop by hop, routing, fragment and destination options.
+IPV6_EXTENSION_HEADERS = (0, 43, 44, 60)
+
+
+def ipv6_packet(payload):
+    """Return (src, dst, protocol, body) for IPv6, or None.
+
+    Extension headers are walked rather than assumed away, because a
+    segment can sit behind several of them. Anything unexpected stops
+    the walk, which is better than reading an offset as a port number.
+    """
+    if len(payload) < IPV6_HEADER or payload[0] >> 4 != 6:
+        return None
+    src = socket.inet_ntop(socket.AF_INET6, payload[8:24])
+    dst = socket.inet_ntop(socket.AF_INET6, payload[24:40])
+    protocol = payload[6]
+    offset = IPV6_HEADER
+    while protocol in IPV6_EXTENSION_HEADERS:
+        if len(payload) < offset + 8:
+            return None
+        if protocol == 44:
+            # A fragment header is a fixed eight bytes.
+            protocol = payload[offset]
+            offset += 8
+            continue
+        following = payload[offset]
+        length = (payload[offset + 1] + 1) * 8
+        if length < 8 or len(payload) < offset + length:
+            return None
+        protocol = following
+        offset += length
+    return src, dst, protocol, payload[offset:]
+
+
 def transport(protocol, payload):
     """Return (sport, dport, body) for TCP or UDP, or None."""
     if protocol not in (IPPROTO_TCP, IPPROTO_UDP):
@@ -70,15 +107,22 @@ def transport(protocol, payload):
 def flows(packets):
     """Turn raw packets into Flow records, skipping anything unreadable."""
     for packet in packets:
+        network = None
         if packet.linktype == 1:
             ethertype, frame = ethernet_frame(packet.data)
-            if ethertype != ETHERTYPE_IPV4:
-                continue
+            if ethertype == ETHERTYPE_IPV4:
+                network = ipv4_packet(frame)
+            elif ethertype == ETHERTYPE_IPV6:
+                network = ipv6_packet(frame)
         else:
-            # Raw IP captures have no link layer to step over.
+            # Raw IP captures have no link layer to step over, so the
+            # version nibble decides which of the two this is.
             frame = packet.data
+            if frame[:1] and frame[0] >> 4 == 6:
+                network = ipv6_packet(frame)
+            else:
+                network = ipv4_packet(frame)
 
-        network = ipv4_packet(frame)
         if not network:
             continue
         src, dst, protocol, body = network

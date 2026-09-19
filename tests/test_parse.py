@@ -1,6 +1,8 @@
 """Tests for the link, network and transport layers."""
 
 import os
+import socket
+import struct
 import sys
 import unittest
 
@@ -111,6 +113,56 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(parse.protocol_name(6), "TCP")
         self.assertEqual(parse.protocol_name(17), "UDP")
         self.assertEqual(parse.protocol_name(47), "IP/47")
+
+
+class Ipv6Tests(unittest.TestCase):
+    CLIENT = "2001:db8::1"
+    SERVER = "2001:db8::2"
+
+    def ipv6(self, protocol, payload, next_header=None):
+        header = struct.pack("!IHBB", 6 << 28, len(payload),
+                             next_header if next_header is not None else protocol, 64)
+        header += socket.inet_pton(socket.AF_INET6, self.CLIENT)
+        header += socket.inet_pton(socket.AF_INET6, self.SERVER)
+        return header + payload
+
+    def test_addresses_and_protocol_are_read(self):
+        packet = self.ipv6(6, build.tcp(51000, 443, b"hello"))
+        src, dst, protocol, body = parse.ipv6_packet(packet)
+        self.assertEqual(src, self.CLIENT)
+        self.assertEqual(dst, self.SERVER)
+        self.assertEqual(protocol, 6)
+        self.assertEqual(body, packet[40:])
+
+    def test_an_extension_header_is_stepped_over(self):
+        # A hop by hop header sits between the ipv6 header and the segment.
+        extension = bytes([6, 0]) + b"\x00" * 6
+        packet = self.ipv6(6, extension + build.tcp(51000, 443, b"hello"),
+                           next_header=0) + b""
+        src, dst, protocol, body = parse.ipv6_packet(packet)
+        self.assertEqual(protocol, 6)
+        self.assertEqual(body, build.tcp(51000, 443, b"hello"))
+
+    def test_a_truncated_packet_is_not_read(self):
+        self.assertIsNone(parse.ipv6_packet(b"\x60" + b"\x00" * 20))
+
+    def test_a_flow_comes_out_of_an_ipv6_frame(self):
+        from pcaptriage.pcap import Packet
+        frame = build.ethernet(self.ipv6(6, build.tcp(51000, 443, b"hi")),
+                               ethertype=parse.ETHERTYPE_IPV6)
+        flows = list(parse.flows([Packet(1.0, frame, 1)]))
+        self.assertEqual(len(flows), 1)
+        self.assertEqual(flows[0].src, self.CLIENT)
+        self.assertEqual(flows[0].dport, 443)
+
+    def test_the_protocol_after_the_extension_is_used(self):
+        # UDP behind a destination options header.
+        extension = bytes([17, 0]) + b"\x00" * 6
+        packet = self.ipv6(17, extension + build.udp(53, 40000, b"x"),
+                           next_header=60)
+        _, _, protocol, body = parse.ipv6_packet(packet)
+        self.assertEqual(protocol, 17)
+        self.assertEqual(parse.transport(protocol, body)[0], 53)
 
 
 if __name__ == "__main__":
