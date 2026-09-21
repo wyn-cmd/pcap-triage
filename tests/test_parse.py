@@ -61,11 +61,10 @@ class Ipv4Tests(unittest.TestCase):
     def test_a_header_with_options_is_stepped_over(self):
         packet = build.ipv4("10.0.0.1", "10.0.0.2", 6, b"payload",
                             options=b"\x01\x01\x01\x01")
-        src, dst, protocol, body = parse.ipv4_packet(packet)
+        _, _, _, body = parse.ipv4_packet(packet)
         self.assertEqual(body, b"payload")
 
     def test_trailing_padding_is_dropped_using_the_declared_length(self):
-        # Small frames arrive padded, and the padding is not part of the packet.
         packet = build.ipv4("10.0.0.1", "10.0.0.2", 6, b"payload")
         padded = packet + b"\x00" * 30
         _, _, _, body = parse.ipv4_packet(padded)
@@ -154,11 +153,10 @@ class Ipv6Tests(unittest.TestCase):
         self.assertEqual(body, packet[40:])
 
     def test_an_extension_header_is_stepped_over(self):
-        # A hop by hop header sits between the ipv6 header and the segment.
         extension = bytes([6, 0]) + b"\x00" * 6
         packet = self.ipv6(6, extension + build.tcp(51000, 443, b"hello"),
-                           next_header=0) + b""
-        src, dst, protocol, body = parse.ipv6_packet(packet)
+                           next_header=0)
+        _, _, protocol, body = parse.ipv6_packet(packet)
         self.assertEqual(protocol, 6)
         self.assertEqual(body, build.tcp(51000, 443, b"hello"))
 
@@ -175,7 +173,6 @@ class Ipv6Tests(unittest.TestCase):
         self.assertEqual(flows[0].dport, 443)
 
     def test_the_protocol_after_the_extension_is_used(self):
-        # UDP behind a destination options header.
         extension = bytes([17, 0]) + b"\x00" * 6
         packet = self.ipv6(17, extension + build.udp(53, 40000, b"x"),
                            next_header=60)
