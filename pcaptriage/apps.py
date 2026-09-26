@@ -145,16 +145,59 @@ def http_host(payload, port):
 
 
 def http_basic_auth(payload, port):
-    """True when an HTTP request carries credentials in the clear.
+    """True when an HTTP request carries Basic credentials in the clear.
 
     A Basic header is base64, not encryption, so anything carrying one over
     plain HTTP is worth naming in the report.
     """
+    return http_credential_scheme(payload, port) == "basic"
+
+
+def http_credential_scheme(payload, port):
+    """The Authorization scheme on a plaintext HTTP request, or None.
+
+    Basic and Bearer are both worth flagging: a Basic header decodes straight
+    to a username and password, and a Bearer token is a working credential in
+    its own right, no decoding needed. Digest is left alone, since the wire
+    value there is a hash of the password rather than the password itself.
+    """
     if port not in HTTP_PORTS or not looks_like_http_request(payload):
-        return False
+        return None
     head = payload.split(b"\r\n\r\n", 1)[0]
     for line in head.split(b"\r\n")[1:]:
         name, _, value = line.partition(b":")
-        if name.strip().lower() == b"authorization":
-            return value.strip().lower().startswith(b"basic ")
-    return False
+        if name.strip().lower() != b"authorization":
+            continue
+        scheme = value.strip().split(b" ", 1)[0].lower()
+        if scheme == b"basic":
+            return "basic"
+        if scheme == b"bearer":
+            return "bearer"
+        return None
+    return None
+
+
+FTP_PORT = 21
+
+
+def ftp_credential(payload):
+    """A username or password sent as plain FTP control commands, or None.
+
+    FTP has no built-in transport security: authentication is two commands,
+    USER then PASS, sent as clear text on the control connection. Either one
+    on its own is a finding, since both are read directly off the wire with
+    no encoding step to undo.
+    """
+    if not payload:
+        return None
+    line = payload.split(b"\r\n", 1)[0].split(b"\n", 1)[0]
+    parts = line.split(b" ", 1)
+    if len(parts) != 2:
+        return None
+    command = parts[0].strip().upper()
+    if command not in (b"USER", b"PASS"):
+        return None
+    value = parts[1].strip()
+    if not value:
+        return None
+    return command.decode("ascii"), value.decode("ascii", "replace")

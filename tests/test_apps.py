@@ -97,6 +97,37 @@ class HttpTests(unittest.TestCase):
         request = b"GET / HTTP/1.1\r\nhost: example.org\r\n\r\n"
         self.assertEqual(apps.http_host(request, 80), "example.org")
 
+    def test_a_bearer_token_is_its_own_scheme(self):
+        request = build.http_request("example.org", "/api", auth="abc123", auth_scheme="Bearer")
+        self.assertEqual(apps.http_credential_scheme(request, 80), "bearer")
+        self.assertFalse(apps.http_basic_auth(request, 80))
+
+    def test_digest_auth_is_not_flagged(self):
+        request = build.http_request("example.org", "/api", auth='realm="x"', auth_scheme="Digest")
+        self.assertIsNone(apps.http_credential_scheme(request, 80))
+
+
+class FtpTests(unittest.TestCase):
+    def test_a_username_is_read(self):
+        self.assertEqual(apps.ftp_credential(build.ftp_command("USER", "anonymous")),
+                         ("USER", "anonymous"))
+
+    def test_a_password_is_read(self):
+        self.assertEqual(apps.ftp_credential(build.ftp_command("PASS", "hunter2")),
+                         ("PASS", "hunter2"))
+
+    def test_a_lower_case_command_still_matches(self):
+        self.assertEqual(apps.ftp_credential(b"user bob\r\n"), ("USER", "bob"))
+
+    def test_an_unrelated_command_is_not_a_credential(self):
+        self.assertIsNone(apps.ftp_credential(build.ftp_command("LIST", "/")))
+
+    def test_a_command_with_no_argument_is_not_a_credential(self):
+        self.assertIsNone(apps.ftp_credential(b"USER\r\n"))
+
+    def test_empty_payload_is_not_a_credential(self):
+        self.assertIsNone(apps.ftp_credential(b""))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

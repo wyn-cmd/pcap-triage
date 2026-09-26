@@ -84,7 +84,7 @@ what stands out
 
 **what stands out** is the short list of things this tool will say something about rather than just count:
 
-  - HTTP requests carrying an Authorization: Basic header. Basic auth is base64, not encryption, so those credentials are readable by anything on the path.
+  - HTTP requests carrying an Authorization header with Basic or Bearer credentials. Basic auth is base64, not encryption, and a Bearer token is a working credential on its own; either one over plain HTTP is readable by anything on the path. FTP USER/PASS commands sent on the control connection are the same finding: FTP has no built-in transport security to begin with.
   - One source reaching twenty or more different ports. That is not proof of a sweep, but it is the shape of one, and it is worth a look before dismissing it.
   - A capture with no names in it at all, which usually means the interesting part is encrypted or that only IP addresses were in use.
 
@@ -96,7 +96,7 @@ When none of those apply, it says so rather than padding the section out.
   - Ethernet and raw IP link layers. The link type is taken from the file header, so a capture from a tunnel works without being told.
   - IPv4 including headers with options, and the declared length is used rather than the buffer end, because small frames arrive padded.
   - TCP and UDP, including TCP headers with options.
-  - DNS query names, TLS ClientHello server names, HTTP Host headers, HTTP request lines and Basic auth headers.
+  - DNS query names, TLS ClientHello server names, HTTP Host headers, HTTP request lines, Basic/Bearer auth headers, and FTP USER/PASS commands.
 
 Anything it cannot read is skipped rather than guessed at. A capture that is truncated part way through a record still reports everything before the truncation, which matters when the file is the last thing a machine wrote before it died.
 
@@ -112,9 +112,10 @@ It also does not try to identify malware, look anything up online, or produce a 
 ## Exit codes
 
 ```
-0  a report was printed
+0  a report was printed, nothing in it stood out
 1  the capture was readable but held no packets
 2  the capture could not be read, or the options made no sense
+3  a report was printed and something in it is worth a second look
 ```
 
 The separation matters when running it over a directory of captures in a loop: a file that is not a capture is a different problem from a capture with nothing in it.

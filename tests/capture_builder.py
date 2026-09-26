@@ -79,12 +79,16 @@ def tls_client_hello_without_sni():
     return b"\x16" + b"\x03\x01" + struct.pack("!H", len(handshake)) + handshake
 
 
-def http_request(host, path="/", method="GET", auth=None):
+def http_request(host, path="/", method="GET", auth=None, auth_scheme="Basic"):
     lines = [f"{method} {path} HTTP/1.1", f"Host: {host}", "User-Agent: curl/8.0"]
     if auth:
-        lines.append(f"Authorization: Basic {auth}")
+        lines.append(f"Authorization: {auth_scheme} {auth}")
     lines.append("")
     return ("\r\n".join(lines) + "\r\n").encode()
+
+
+def ftp_command(command, argument):
+    return f"{command} {argument}\r\n".encode()
 
 
 def pcap(packets, linktype=1, nanosecond=False, byte_order="<", truncated=False):

@@ -108,6 +108,31 @@ class NotableTests(unittest.TestCase):
         text = report.render(self.summary)
         self.assertIn("different ports", text)
 
+    def test_a_bearer_token_is_flagged_too(self):
+        path = os.path.join(self.work, "bearer.pcap")
+        frame = build.ethernet(build.ipv4(
+            CLIENT, SERVER, 6,
+            build.tcp(51000, 80, build.http_request(
+                "example.org", "/api", auth="abc123", auth_scheme="Bearer"))))
+        summary = summary_from([(1.0, frame)], path)
+        text = report.render(summary)
+        self.assertIn("Bearer", text)
+        self.assertIn("/api", text)
+
+    def test_ftp_credentials_are_flagged(self):
+        path = os.path.join(self.work, "ftp.pcap")
+        frames = [
+            (1.0, build.ethernet(build.ipv4(
+                CLIENT, SERVER, 6,
+                build.tcp(51000, 21, build.ftp_command("USER", "anonymous"))))),
+            (1.1, build.ethernet(build.ipv4(
+                CLIENT, SERVER, 6,
+                build.tcp(51000, 21, build.ftp_command("PASS", "secret"))))),
+        ]
+        summary = summary_from(frames, path)
+        text = report.render(summary)
+        self.assertIn("plain FTP", text)
+
     def test_a_quiet_capture_has_nothing_to_flag(self):
         path = os.path.join(self.work, "quiet.pcap")
         quiet = summary_from([(1.0, build.ethernet(build.ipv4(

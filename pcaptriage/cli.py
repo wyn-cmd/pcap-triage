@@ -40,6 +40,8 @@ def build_parser():
                         help="only count packets at or before this time")
     parser.add_argument("--host", metavar="ADDRESS",
                         help="only count traffic to or from this address")
+    parser.add_argument("--only-notable", action="store_true",
+                        help="print only the findings, one per line")
     parser.add_argument("--json", action="store_true",
                         help="print the counts as JSON instead of a report")
     parser.add_argument("--version", action="version",
@@ -76,11 +78,18 @@ def main(argv=None):
         print("pcap-triage: the capture holds no packets", file=sys.stderr)
         return 1
 
+    findings = report.notable(summary)
+
+    if args.only_notable:
+        for line in findings:
+            print(line)
+        return 3 if findings else 0
+
     if args.json:
         print(json.dumps(report.as_dict(summary, top=args.top), indent=2))
     else:
         print(report.render(summary, top=args.top), end="")
-    return 0
+    return 3 if findings else 0
 
 
 if __name__ == "__main__":

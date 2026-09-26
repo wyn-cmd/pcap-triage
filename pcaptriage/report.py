@@ -61,6 +61,7 @@ class Summary:
         self.http_hosts = Counter()
         self.http_requests = Counter()
         self.credentials = Counter()
+        self.ftp_credentials = Counter()
         self.destination_ports = defaultdict(set)
         # Timestamps per destination, which is what a regular callback
         # shows up in: the gaps between them are all the same length.
@@ -123,8 +124,15 @@ def summarise(packets, host=None, since=None, until=None):
             method, path = apps.http_request_line(flow.payload)
             if method and flow.dport in apps.HTTP_PORTS:
                 summary.http_requests[(method, path)] += 1
-                if apps.http_basic_auth(flow.payload, flow.dport):
-                    summary.credentials[(flow.src, flow.dst, path)] += 1
+                scheme = apps.http_credential_scheme(flow.payload, flow.dport)
+                if scheme:
+                    summary.credentials[(flow.src, flow.dst, path, scheme)] += 1
+
+            if flow.dport == apps.FTP_PORT or flow.sport == apps.FTP_PORT:
+                credential = apps.ftp_credential(flow.payload)
+                if credential:
+                    command, _ = credential
+                    summary.ftp_credentials[(flow.src, flow.dst, command)] += 1
     return summary
 
 
@@ -156,10 +164,16 @@ def notable(summary):
             lines.append(f"{src} contacted {dst}:{port} {len(times)} times "
                          f"at roughly {average:.0f} second intervals")
 
-    for (src, dst, path), count in summary.credentials.most_common(5):
+    for (src, dst, path, scheme), count in summary.credentials.most_common(5):
         plural = "request" if count == 1 else "requests"
+        label = "Basic" if scheme == "basic" else "Bearer"
         lines.append(f"{count} {plural} from {src} to {dst} carried "
-                     f"credentials in the clear ({path})")
+                     f"credentials in the clear ({label}, {path})")
+
+    for (src, dst, command), count in summary.ftp_credentials.most_common(5):
+        plural = "time" if count == 1 else "times"
+        verb = "a username" if command == "USER" else "a password"
+        lines.append(f"{src} sent {verb} to {dst} over plain FTP, {count} {plural}")
 
     for src, ports in sorted(summary.destination_ports.items()):
         if len(ports) >= SCAN_PORTS:
