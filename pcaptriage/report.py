@@ -213,7 +213,7 @@ def render(summary, top=10):
                         f"{row[0][0]} -> {row[0][1]}")
 
     section("protocols", summary.protocols.most_common(),
-            lambda row: f"{row[1]:>7,}  {row[0]}")
+            lambda row: f"{row[1]:>7,} ({row[1]/summary.packets*100:4.1f}%)  {row[0]}")
 
     section("busiest services", summary.services.most_common(),
             lambda row: f"{row[1]:>7,}  {row[0]}")
