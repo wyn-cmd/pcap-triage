@@ -57,6 +57,7 @@ class Summary:
         self.protocols = Counter()
         self.services = Counter()
         self.dns_names = Counter()
+        self.dns_names_by_host = defaultdict(set)
         self.tls_names = Counter()
         self.http_hosts = Counter()
         self.http_requests = Counter()
@@ -112,6 +113,7 @@ def summarise(packets, host=None, since=None, until=None):
             name = apps.dns_question(flow.payload, flow.dport)
             if name:
                 summary.dns_names[name] += 1
+                summary.dns_names_by_host[flow.src].add(name)
 
             name = apps.tls_server_name(flow.payload, flow.dport)
             if name:
@@ -221,6 +223,9 @@ def render(summary, top=10):
 
     section("busiest services", summary.services.most_common(),
             lambda row: f"{row[1]:>7,}  {row[0]}")
+
+    section("dns queries per host", sorted(summary.dns_names_by_host.items()),
+            lambda row: f"{row[0]}: {', '.join(sorted(row[1]))}")
 
     section("names asked for", summary.dns_names.most_common(),
             lambda row: f"{row[1]:>7,}  {row[0]}")
