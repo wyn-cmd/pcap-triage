@@ -70,7 +70,10 @@ what stands out
 
 ## The sections, and what each one is for
 
+**top talkers (by bytes)** counts packets and bytes for each pair of addresses, largest first (by byte volume). This is usually the fastest way to spot the machine that is doing all the talking, or the one address everything is talking to. Bytes here are whole packets on the wire, so they add up to the size in the header.
+
 **top talkers** counts packets and bytes for each pair of addresses, largest first. This is usually the fastest way to spot the machine that is doing all the talking, or the one address everything is talking to. Bytes here are whole packets on the wire, so they add up to the size in the header.
+
 
 **protocols** is the split between TCP and UDP across the capture. A capture that is almost entirely UDP where you expected TCP is worth noticing.
 

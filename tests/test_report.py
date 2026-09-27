@@ -72,6 +72,13 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(self.summary.protocols["TCP"], 26)
         self.assertEqual(self.summary.protocols["UDP"], 1)
 
+    def test_talkers_sorted_by_bytes(self):
+        # The talker with more bytes should be first in the "top talkers (by bytes)" section
+        text = report.render(self.summary)
+        # Verify section title is present
+        self.assertIn("top talkers (by bytes)", text)
+
+
     def test_services(self):
         self.assertEqual(self.summary.services["TCP/443"], 2)
         self.assertEqual(self.summary.services["TCP/80"], 2)

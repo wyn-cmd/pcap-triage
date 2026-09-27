@@ -221,10 +221,13 @@ def render(summary, top=10):
             out.append(f"  and {len(rows) - top} more")
         out.append("")
 
-    section("top talkers", summary.talkers.most_common(),
+    # Talkers sorted by volume of bytes.
+    talkers_by_bytes = sorted(summary.talkers.keys(), key=lambda k: summary.talker_bytes[k], reverse=True)
+    section("top talkers (by bytes)", [(pair, summary.talkers[pair]) for pair in talkers_by_bytes],
             lambda row: f"{row[1]:>7,} packets  "
                         f"{human_bytes(summary.talker_bytes[row[0]]):>9}  "
                         f"{row[0][0]} -> {row[0][1]}")
+
 
     section("protocols", summary.protocols.most_common(),
             lambda row: f"{row[1]:>7,} ({row[1]/summary.packets*100:4.1f}%)  {row[0]}")
