@@ -61,6 +61,7 @@ class Summary:
         self.tls_names = Counter()
         self.http_hosts = Counter()
         self.http_requests = Counter()
+        self.user_agents = Counter()
         self.credentials = Counter()
         self.ftp_credentials = Counter()
         self.destination_ports = defaultdict(set)
@@ -114,6 +115,10 @@ def summarise(packets, host=None, since=None, until=None):
             if name:
                 summary.dns_names[name] += 1
                 summary.dns_names_by_host[flow.src].add(name)
+
+            ua = apps.http_user_agent(flow.payload, flow.dport)
+            if ua:
+                summary.user_agents[ua] += 1
 
             name = apps.tls_server_name(flow.payload, flow.dport)
             if name:
@@ -182,6 +187,9 @@ def notable(summary):
         lines.append(f"{src} sent {verb} to {dst} over plain FTP, {count} {plural}")
 
     for src, ports in sorted(summary.destination_ports.items()):
+        for port in ports:
+            if port not in COMMON_PORTS:
+                lines.append(f"{src} communicated over non-standard port {port}")
         if len(ports) >= SCAN_PORTS:
             lines.append(f"{src} reached {len(ports)} different ports on the "
                          "hosts it talked to")
@@ -233,6 +241,9 @@ def render(summary, top=10):
     section("tls server names", summary.tls_names.most_common(),
             lambda row: f"{row[1]:>7,}  {row[0]}")
 
+    section("http user agents", summary.user_agents.most_common(),
+            lambda row: f"{row[1]:>7,}  {row[0]}")
+
     section("http hosts", summary.http_hosts.most_common(),
             lambda row: f"{row[1]:>7,}  {row[0]}")
 
@@ -273,3 +284,7 @@ def as_dict(summary, top=10):
             for key, count in summary.http_requests.most_common(top)],
         "notable": notable(summary),
     }
+
+
+# Non-standard port mapping
+COMMON_PORTS = {80, 443, 22, 21, 53, 123, 445, 137, 138, 139}

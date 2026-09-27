@@ -201,3 +201,13 @@ def ftp_credential(payload):
     if not value:
         return None
     return command.decode("ascii"), value.decode("ascii", "replace")
+
+def http_user_agent(payload, port):
+    if port not in HTTP_PORTS or not looks_like_http_request(payload):
+        return None
+    head = payload.split(b"\r\n\r\n", 1)[0]
+    for line in head.split(b"\r\n")[1:]:
+        name, _, value = line.partition(b":")
+        if name.strip().lower() == b"user-agent":
+            return value.strip().decode("ascii", "replace")
+    return None
