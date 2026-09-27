@@ -158,6 +158,10 @@ def notable(summary):
     """The lines under "what stands out", in the order they matter."""
     lines = []
 
+    for (src, dst), bytes_ in summary.talker_bytes.items():
+        if bytes_ >= 5 * 1024 * 1024:
+            lines.append(f"{src} sent {human_bytes(bytes_)} to {dst}")
+    
     for (src, dst, port), times in sorted(summary.connections.items()):
         average = regular_interval(times)
         if average is not None:
