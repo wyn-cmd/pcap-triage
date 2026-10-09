@@ -1,8 +1,7 @@
-"""Command line entry point.
-
-Kept thin on purpose: read the capture, build the summary, print it. Anything
-that grows beyond that belongs in the modules it calls.
-"""
+# Command line entry point.
+#
+# Kept thin on purpose: read the capture, build the summary, print it. Anything
+# that grows beyond that belongs in the modules it calls.
 
 import argparse
 import json
@@ -15,8 +14,8 @@ from . import pcap
 from . import report
 
 
+# A timestamp from the command line: seconds, or an ISO 8601 time.
 def parse_time(text):
-    """A timestamp from the command line: seconds, or an ISO 8601 time."""
     try:
         return float(text)
     except ValueError:

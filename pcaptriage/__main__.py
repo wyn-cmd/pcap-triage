@@ -1,4 +1,4 @@
-"""Run the tool with python3 -m pcaptriage, which is how the docs call it."""
+# Run the tool with python3 -m pcaptriage, which is how the docs call it.
 
 import sys
 
