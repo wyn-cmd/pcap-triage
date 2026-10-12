@@ -1,14 +1,12 @@
-"""Reading capture files.
-
-Only the classic libpcap format is handled for now. It starts with a magic
-number and a fixed header, then a run of records, each with a timestamp and a
-length. Both byte orders turn up in the wild, and some captures count time in
-nanoseconds rather than microseconds, so the header decides how to read the
-records rather than a flag on the command line.
-"""
+# Reading capture files.
+#
+# Only the classic libpcap format is handled for now. It starts with a magic
+# number and a fixed header, then a run of records, each with a timestamp and a
+# length. Both byte orders turn up in the wild, and some captures count time in
+# nanoseconds rather than microseconds, so the header decides how to read the
+# records rather than a flag on the command line.
 
 import struct
-
 from collections import namedtuple
 
 # The four magic numbers a capture can start with. The first two are microsecond
@@ -30,27 +28,27 @@ LINKTYPE_RAW = 101
 Packet = namedtuple("Packet", "timestamp data linktype")
 
 
+# The file is not a capture this tool can read.
 class CaptureError(Exception):
-    """The file is not a capture this tool can read."""
+    pass
 
 
+# A parsed capture header, and the packets that follow it.
 class Capture:
-    """A parsed capture header, and the packets that follow it."""
-
     def __init__(self, byte_order, nanosecond, linktype, version):
         self.byte_order = byte_order
         self.nanosecond = nanosecond
         self.linktype = linktype
         self.version = version
 
+    # What to divide the record timestamps by to get seconds.
     @property
     def divisor(self):
-        """What to divide the record timestamps by to get seconds."""
         return 1_000_000_000 if self.nanosecond else 1_000_000
 
 
+# Return 'pcap', 'pcapng' or None for a file that is neither.
 def sniff_format(path):
-    """Return 'pcap', 'pcapng' or None for a file that is neither."""
     with open(path, "rb") as handle:
         magic = handle.read(4)
     if magic in (MAGIC_USEC_LE, MAGIC_USEC_BE, MAGIC_NSEC_LE, MAGIC_NSEC_BE):
@@ -60,9 +58,8 @@ def sniff_format(path):
     return None
 
 
+# Iterate the packets of a classic libpcap capture.
 class PcapReader:
-    """Iterate the packets of a classic libpcap capture."""
-
     def __init__(self, handle):
         self.handle = handle
         self.capture = self._read_header()
@@ -99,8 +96,7 @@ class PcapReader:
             seconds, fraction, captured, _ = record.unpack(raw)
             data = self.handle.read(captured)
             if len(data) < captured:
-                # A capture cut off part way through a record is still worth
-                # reading: everything before the truncation is intact.
+                # A capture cut off part way through a record is still worth reading: everything before the truncation is intact.
                 return
             yield Packet(seconds + fraction / self.capture.divisor,
                          data, self.capture.linktype)
@@ -116,15 +112,13 @@ BYTE_ORDER_MARK_LE = b"\x4d\x3c\x2b\x1a"
 DEFAULT_TICKS_PER_SECOND = 1_000_000
 
 
+# Iterate the packets of a pcapng capture.
+#
+# A pcapng file is a run of blocks, each with a type and a length.
+# Only three matter here: the section header, which carries the byte
+# order, the interface description, which carries the link type, and
+# the enhanced packet blocks, which carry the packets.
 class PcapngReader:
-    """Iterate the packets of a pcapng capture.
-
-    A pcapng file is a run of blocks, each with a type and a length.
-    Only three matter here: the section header, which carries the byte
-    order, the interface description, which carries the link type, and
-    the enhanced packet blocks, which carry the packets.
-    """
-
     def __init__(self, handle):
         self.handle = handle
         self.byte_order = "<"
@@ -181,13 +175,12 @@ class PcapngReader:
                              body[20:20 + captured], self.linktype)
 
 
+# Yield every packet in a capture, whatever format it uses.
+#
+# The format comes from the first four bytes rather than the file
+# name, because a pcapng capture renamed to .pcap is still a pcapng
+# capture and reading it as anything else gives nonsense.
 def read_packets(path):
-    """Yield every packet in a capture, whatever format it uses.
-
-    The format comes from the first four bytes rather than the file
-    name, because a pcapng capture renamed to .pcap is still a pcapng
-    capture and reading it as anything else gives nonsense.
-    """
     with open(path, "rb") as handle:
         magic = handle.read(4)
         handle.seek(0)
@@ -195,5 +188,4 @@ def read_packets(path):
             reader = PcapngReader(handle)
         else:
             reader = PcapReader(handle)
-        for packet in reader:
-            yield packet
+        yield from reader
