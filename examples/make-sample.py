@@ -59,6 +59,8 @@ def sample():
 
 
 def main():
+    if len(sys.argv) > 2:
+        raise ValueError("Too many arguments")
     target = sys.argv[1] if len(sys.argv) > 1 else "sample.pcap"
     with open(target, "wb") as handle:
         handle.write(build.pcap(sample()))
